@@ -12,9 +12,10 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Mpd
 import Pane
+import Platform
 import Task
 import Time
-import WebSocket
+import Websocket
 
 
 type alias MPane =
@@ -85,8 +86,13 @@ init flags =
       , artistView = [ artistPane ]
       , now = 0
       }
-    , Task.perform Tick Time.now
+    , Cmd.batch
+        [ Task.perform Tick Time.now
+        -- , Task.attempt NewConnection (Websocket.connect flags.wsURL)
+        ]
     )
+
+
 
 
 rootPane : MPane
@@ -113,6 +119,8 @@ type Msg
     | AddArtistPane String MPane -- AddArtistPane after newpane
     | Tick Time.Time
     | Noop
+    -- | NewConnection (Result WSL.BadOpen WSL.WebSocket)
+
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -194,6 +202,16 @@ update msg model =
 
         Noop ->
             ( model, Cmd.none )
+
+
+{-
+        NewConnection res ->
+            case res of
+                Ok c -> 
+                    Debug.log ("new ws conn!") ( model, Cmd.none )
+                Err e -> 
+                    Debug.log ("ws conn error: " ++ (toString e)) ( model, Cmd.none )
+-}
 
 
 view : Model -> Html Msg
@@ -447,15 +465,13 @@ viewPlaylist model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch
-        [ WebSocket.listen model.wsURL IncomingWSMessage
-        , Time.every Time.second Tick
-        ]
+    Time.every Time.second Tick
 
 
 wsSend : String -> String -> Cmd Msg
 wsSend wsURL o =
-    WebSocket.send wsURL o
+    Debug.crash "disabled wsSend"
+    -- WebSocket.send wsURL o
 
 
 cmdLoadDir : String -> String -> String
