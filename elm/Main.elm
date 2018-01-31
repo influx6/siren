@@ -73,6 +73,7 @@ type alias Model =
     , fileView : List MPane
     , artistView : List MPane
     , now : Time.Time
+    , conn : Maybe WSM.WebSocket
     }
 
 
@@ -86,11 +87,12 @@ init flags =
       , fileView = [ rootPane ]
       , artistView = [ artistPane ]
       , now = 0
+      , conn = Nothing
       }
     , Cmd.batch
         [ Task.perform Tick Time.now
         -- , Task.attempt NewConnection (Websocket.connect flags.wsURL)
-        , WSM.connect flags.wsURL WSConnected WSMessage WSDisconnect
+        , WSM.open flags.wsURL WSOpen WSMessage WSDisconnect
         ]
     )
 
@@ -120,9 +122,9 @@ type Msg
     | AddArtistPane String MPane -- AddArtistPane after newpane
     | Tick Time.Time
     | Noop
-    | WSConnected Bool
+    | WSOpen (Result String WSM.WebSocket)
     | WSMessage String
-    | WSDisconnect
+    | WSDisconnect String
 
 
 
@@ -181,7 +183,7 @@ update msg model =
             ( { model | fileView = Pane.addPane model.fileView after p }
             , Cmd.batch
                 [ scrollNC
-                , wsSend model.wsURL p.update
+                , wsSend model.conn p.update
                 ]
             )
 
@@ -189,13 +191,13 @@ update msg model =
             ( { model | artistView = Pane.addPane model.artistView after p }
             , Cmd.batch
                 [ scrollNC
-                , wsSend model.wsURL p.update
+                , wsSend model.conn p.update
                 ]
             )
 
         SendWS payload ->
             ( model
-            , wsSend model.wsURL payload
+            , wsSend model.conn payload
             )
 
         Tick t ->
@@ -206,11 +208,14 @@ update msg model =
         Noop ->
             ( model, Cmd.none )
 
-        WSConnected ok ->
-            Debug.log ("new ws conn: " ++ (toString ok)) ( model, Cmd.none )
+        WSOpen (Ok ws) ->
+            Debug.log ("new ws conn!") ( {model | conn = Just ws} , Cmd.none )
 
-        WSDisconnect ->
-            Debug.log ("ws disconnected") ( model, Cmd.none )
+        WSOpen (Err err) ->
+            Debug.log ("ws conn error: " ++ err) ( {model | conn = Nothing}, Cmd.none )
+
+        WSDisconnect reason ->
+            Debug.log ("ws disconnected, reason: " ++ reason) ( {model | conn = Nothing}, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -467,10 +472,13 @@ subscriptions model =
     Time.every Time.second Tick
 
 
-wsSend : String -> String -> Cmd Msg
-wsSend wsURL o =
-    Debug.crash "disabled wsSend"
-    -- WebSocket.send wsURL o
+wsSend : Maybe WSM.WebSocket -> String -> Cmd Msg
+wsSend mconn o =
+    case mconn of 
+        Nothing ->
+            Debug.log "sending without connection" Cmd.none
+        Just conn ->
+            WSM.send conn o (\err -> Debug.log ("msg err: " ++ err) Noop)
 
 
 cmdLoadDir : String -> String -> String
@@ -722,13 +730,13 @@ setTrackPane paneid track panes =
 reloadFiles : Model -> Cmd Msg
 reloadFiles m =
     Cmd.batch <|
-        List.map (\p -> wsSend m.wsURL p.update) m.fileView
+        List.map (\p -> wsSend m.conn p.update) m.fileView
 
 
 reloadArtists : Model -> Cmd Msg
 reloadArtists m =
     Cmd.batch <|
-        List.map (\p -> wsSend m.wsURL p.update) m.artistView
+        List.map (\p -> wsSend m.conn p.update) m.artistView
 
 
 scrollNC : Cmd Msg

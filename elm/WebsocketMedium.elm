@@ -1,32 +1,37 @@
 effect module WebsocketMedium where { command = WSCmd } exposing
-    (..)
+    ( open
+    , send
+    , WebSocket
+    )
 
 import Task
 import WebSocket.LowLevel as WSL
 
 
+type WebSocket = WS WSL.WebSocket
+
+
 type WSCmd msg
-    = Connect String (Bool -> msg) (String -> msg) msg
+    = Open String (Result String WebSocket -> msg) (String -> msg) (String -> msg)
+    | Send WSL.WebSocket String (String -> msg)
 
 
 type alias Msg
     = ()
 
-type alias State
-    = List WSL.WebSocket
-
 
 cmdMap : (a -> b) -> WSCmd a -> WSCmd b
 cmdMap f cmd =
     case cmd of
-        Connect a b c d -> Connect a (f << b) (f << c) (f d)
+        Open a b c d -> Open a (f << b) (f << c) (f << d)
+        Send a b c -> Send a b (f << c)
 
 
-init : Task.Task Never State
-init = Debug.log ("ws init!") <| Task.succeed []
+init : Task.Task Never ()
+init = Task.succeed ()
 
 
-onEffects : Platform.Router msg Msg -> List (WSCmd msg) -> State -> Task.Task Never (State)
+onEffects : Platform.Router msg Msg -> List (WSCmd msg) -> () -> Task.Task Never ()
 onEffects r cmds state =
     helper (List.map (\c -> dealWithCmd r c) cmds) state
 
@@ -38,30 +43,42 @@ helper fs state =
         f :: rest -> f state |> Task.andThen (helper rest)
 
 
-dealWithCmd : Platform.Router msg Msg -> WSCmd msg -> State -> Task.Task Never (State)
+dealWithCmd : Platform.Router msg Msg -> WSCmd msg -> () -> Task.Task Never ()
 dealWithCmd r cmd state =
     case cmd of
-        Connect url onConnect onMesg onClose ->
+        Open url onOpen onMesg onClose ->
             let
                 cbMessage : WSL.WebSocket -> String -> Task.Task Never ()
                 cbMessage ws payload = Platform.sendToApp r (onMesg payload)
                 cbClose : { code : Int, reason : String, wasClean : Bool } -> Task.Task Never ()
-                cbClose details = Platform.sendToApp r onClose
+                cbClose details = Platform.sendToApp r (onClose details.reason)
             in
                 WSL.open url { onMessage = cbMessage, onClose = cbClose }
                     |> Task.andThen (
-                        \ws -> Platform.sendToApp r (onConnect True)
-                               |> Task.andThen (\_ -> Task.succeed ( ws :: state ))
+                        \ws -> Platform.sendToApp r (onOpen <| Ok <| WS ws)
                     )
-                    |> Task.onError (\err -> Platform.sendToApp r (onConnect False) |> Task.andThen (\_ -> Task.succeed state))
+                    |> Task.onError (\err -> Platform.sendToApp r (onOpen <| Err <| toString err)
+                                        |> Task.andThen (\_ -> Task.succeed state)
+                                    )
+        Send ws msg onError ->
+            WSL.send ws msg
+                |> Task.andThen (\res -> case res of
+                    Nothing -> Task.succeed ()
+                    Just badsend -> Platform.sendToApp r (onError <| toString badsend)
+                )
+                
 
 
-onSelfMsg : Platform.Router msg Msg -> Msg -> State -> Task.Task Never (State)
+onSelfMsg : Platform.Router msg Msg -> Msg -> () -> Task.Task Never ()
 onSelfMsg router msg state =
     Debug.log ("in onSelfMsg: " ++ toString msg) <| Task.succeed state
 
 
-connect : String -> (Bool -> msg) -> (String -> msg) -> msg -> Cmd msg
-connect url onConnect onMesg onClose =
-    command <| Connect url onConnect onMesg onClose 
+open : String -> (Result String WebSocket -> msg) -> (String -> msg) -> (String -> msg) -> Cmd msg
+open url onOpen onMesg onClose =
+    command <| Open url onOpen onMesg onClose 
     
+
+send : WebSocket -> String -> (String -> msg) -> Cmd msg
+send (WS ws) msg onError =
+    command <| Send ws msg onError
