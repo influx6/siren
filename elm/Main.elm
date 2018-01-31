@@ -16,6 +16,7 @@ import Platform
 import Task
 import Time
 import Websocket
+import WebsocketMedium as WSM
 
 
 type alias MPane =
@@ -89,6 +90,7 @@ init flags =
     , Cmd.batch
         [ Task.perform Tick Time.now
         -- , Task.attempt NewConnection (Websocket.connect flags.wsURL)
+        , WSM.connect flags.wsURL WSConnected WSMessage WSDisconnect
         ]
     )
 
@@ -113,20 +115,21 @@ type View
 
 type Msg
     = SendWS String -- encoded json
-    | IncomingWSMessage String
     | Show View
     | AddFilePane String MPane -- AddFilePane after newpane
     | AddArtistPane String MPane -- AddArtistPane after newpane
     | Tick Time.Time
     | Noop
-    -- | NewConnection (Result WSL.BadOpen WSL.WebSocket)
+    | WSConnected Bool
+    | WSMessage String
+    | WSDisconnect
 
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        IncomingWSMessage m ->
+        WSMessage m ->
             case Decode.decodeString Mpd.wsMsgDecoder m of
                 Err e ->
                     Debug.log ("json err: " ++ e) ( model, Cmd.none )
@@ -203,15 +206,11 @@ update msg model =
         Noop ->
             ( model, Cmd.none )
 
+        WSConnected ok ->
+            Debug.log ("new ws conn: " ++ (toString ok)) ( model, Cmd.none )
 
-{-
-        NewConnection res ->
-            case res of
-                Ok c -> 
-                    Debug.log ("new ws conn!") ( model, Cmd.none )
-                Err e -> 
-                    Debug.log ("ws conn error: " ++ (toString e)) ( model, Cmd.none )
--}
+        WSDisconnect ->
+            Debug.log ("ws disconnected") ( model, Cmd.none )
 
 
 view : Model -> Html Msg

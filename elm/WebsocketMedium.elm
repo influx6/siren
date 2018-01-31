@@ -44,9 +44,9 @@ dealWithCmd r cmd state =
         Connect url onConnect onMesg onClose ->
             let
                 cbMessage : WSL.WebSocket -> String -> Task.Task Never ()
-                cbMessage ws payload = Task.succeed ()
+                cbMessage ws payload = Platform.sendToApp r (onMesg payload)
                 cbClose : { code : Int, reason : String, wasClean : Bool } -> Task.Task Never ()
-                cbClose details = Task.succeed ()
+                cbClose details = Platform.sendToApp r onClose
             in
                 WSL.open url { onMessage = cbMessage, onClose = cbClose }
                     |> Task.andThen (
