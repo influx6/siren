@@ -32,19 +32,12 @@ init = Task.succeed ()
 
 
 onEffects : Platform.Router msg Msg -> List (WSCmd msg) -> () -> Task.Task Never ()
-onEffects r cmds state =
-    helper (List.map (\c -> dealWithCmd r c) cmds) state
+onEffects r cmds () =
+    Task.sequence (List.map (dealWithCmd r) cmds) |> Task.andThen (\_ -> Task.succeed ())
 
 
-helper : List (s -> Task.Task x s) -> s -> Task.Task x s
-helper fs state =
-    case fs of
-        [] -> Task.succeed state
-        f :: rest -> f state |> Task.andThen (helper rest)
-
-
-dealWithCmd : Platform.Router msg Msg -> WSCmd msg -> () -> Task.Task Never ()
-dealWithCmd r cmd state =
+dealWithCmd : Platform.Router msg Msg -> WSCmd msg -> Task.Task Never ()
+dealWithCmd r cmd =
     case cmd of
         Open url onOpen onMesg onClose ->
             let
@@ -58,7 +51,6 @@ dealWithCmd r cmd state =
                         \ws -> Platform.sendToApp r (onOpen <| Ok <| WS ws)
                     )
                     |> Task.onError (\err -> Platform.sendToApp r (onOpen <| Err <| toString err)
-                                        |> Task.andThen (\_ -> Task.succeed state)
                                     )
         Send ws msg onError ->
             WSL.send ws msg
@@ -70,8 +62,8 @@ dealWithCmd r cmd state =
 
 
 onSelfMsg : Platform.Router msg Msg -> Msg -> () -> Task.Task Never ()
-onSelfMsg router msg state =
-    Debug.log ("in onSelfMsg: " ++ toString msg) <| Task.succeed state
+onSelfMsg router msg () =
+    Task.succeed ()
 
 
 open : String -> (Result String WebSocket -> msg) -> (String -> msg) -> (String -> msg) -> Cmd msg
