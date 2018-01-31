@@ -16,10 +16,6 @@ type WSCmd msg
     | Send WSL.WebSocket String (String -> msg)
 
 
-type alias Msg
-    = ()
-
-
 cmdMap : (a -> b) -> WSCmd a -> WSCmd b
 cmdMap f cmd =
     case cmd of
@@ -31,12 +27,12 @@ init : Task.Task Never ()
 init = Task.succeed ()
 
 
-onEffects : Platform.Router msg Msg -> List (WSCmd msg) -> () -> Task.Task Never ()
+onEffects : Platform.Router msg () -> List (WSCmd msg) -> () -> Task.Task Never ()
 onEffects r cmds () =
     Task.sequence (List.map (dealWithCmd r) cmds) |> Task.andThen (\_ -> Task.succeed ())
 
 
-dealWithCmd : Platform.Router msg Msg -> WSCmd msg -> Task.Task Never ()
+dealWithCmd : Platform.Router msg () -> WSCmd msg -> Task.Task Never ()
 dealWithCmd r cmd =
     case cmd of
         Open url onOpen onMesg onClose ->
@@ -61,7 +57,7 @@ dealWithCmd r cmd =
                 
 
 
-onSelfMsg : Platform.Router msg Msg -> Msg -> () -> Task.Task Never ()
+onSelfMsg : Platform.Router msg () -> () -> () -> Task.Task Never ()
 onSelfMsg router msg () =
     Task.succeed ()
 
