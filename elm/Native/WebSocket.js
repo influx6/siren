@@ -1,44 +1,21 @@
 var _user$project$Native_WebSocket = function() {
 
-function open(url, settings)
+function open(url)
 {
+    console.log("in outer native open")
 	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
 	{
-		try
-		{
-			var socket = new WebSocket(url);
-			socket.elm_web_socket = true;
-		}
-		catch(err)
-		{
-			return callback(_elm_lang$core$Native_Scheduler.fail({
-				ctor: err.name === 'SecurityError' ? 'BadSecurity' : 'BadArgs',
-				_0: err.message
-			}));
-		}
+        console.log("in native open", callback)
 
-		socket.addEventListener("open", function(event) {
-			callback(_elm_lang$core$Native_Scheduler.succeed(socket));
-		});
-
-		socket.addEventListener("message", function(event) {
-			_elm_lang$core$Native_Scheduler.rawSpawn(A2(settings.onMessage, socket, event.data));
-		});
-
-		socket.addEventListener("close", function(event) {
-			_elm_lang$core$Native_Scheduler.rawSpawn(settings.onClose({
-				code: event.code,
-				reason: event.reason,
-				wasClean: event.wasClean
-			}));
-		});
-
+        // return callback(_elm_lang$core$Native_Scheduler.succeed(null));
+		var id = setTimeout(function() {
+            console.log("good morning!");
+            callback(_elm_lang$core$Native_Scheduler.succeed(null));
+			// callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
+		}, 1000);
 		return function()
 		{
-			if (socket && socket.close)
-			{
-				socket.close();
-			}
+            console.log("in the mysterious callback");
 		};
 	});
 }
@@ -47,6 +24,7 @@ function send(socket, string)
 {
 	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
 	{
+        console.log("in send");
 		var result =
 			socket.readyState === WebSocket.OPEN
 				? _elm_lang$core$Maybe$Nothing
@@ -68,6 +46,7 @@ function send(socket, string)
 function close(code, reason, socket)
 {
 	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+        console.log("in close");
 		try
 		{
 			socket.close(code, reason);
@@ -85,12 +64,13 @@ function close(code, reason, socket)
 function bytesQueued(socket)
 {
 	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+        console.log("in bytesQueued");
 		callback(_elm_lang$core$Native_Scheduler.succeed(socket.bufferedAmount));
 	});
 }
 
 return {
-	open: F2(open),
+	open: open,
 	send: F2(send),
 	close: F3(close),
 	bytesQueued: bytesQueued

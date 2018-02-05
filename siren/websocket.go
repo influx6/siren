@@ -85,12 +85,15 @@ func websocketHandler(c *MPD) func(http.ResponseWriter, *http.Request) {
 		writeMsg := func(msg WSMsg) error {
 			lock.Lock()
 			defer lock.Unlock()
-			w, err := conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return err
-			}
-			defer w.Close()
-			return json.NewEncoder(w).Encode(msg)
+			/*
+				w, err := conn.NextWriter(websocket.TextMessage)
+				if err != nil {
+					return err
+				}
+				defer w.Close()
+				return json.NewEncoder(w).Encode(msg)
+			*/
+			return nil
 		}
 
 		go func() {

@@ -99,20 +99,13 @@ init flags =
       , conn = Nothing
       , mpdOnline = False
       }
-    , Cmd.batch
-        [ Task.perform Tick Time.now
-        , connect flags.wsURL
-        ]
+    , Cmd.none -- connect flags.wsURL
     )
 
 
 connect : String -> Cmd Msg
 connect url =
-    Explicit.open url
-        { onOpen = WSOpen
-        , onMessage = WSMessage
-        , onClose = WSDisconnect
-        }
+    Explicit.open url WSOpen
 
 
 rootPane : MPane
@@ -257,10 +250,19 @@ update msg model =
             ( model, Cmd.none )
 
         Connect ->
-            ( model, connect model.wsURL )
+            ( model, Cmd.batch
+                    [ connect model.wsURL
+                    , Task.perform Tick Time.now
+                    , Task.perform Tick Time.now
+                    , Task.perform Tick Time.now
+                    , Task.perform Tick Time.now
+                    , Task.perform Tick Time.now
+                    , Task.perform Tick Time.now
+                    ]
+            )
 
         WSOpen (Ok ws) ->
-            ( { model | conn = Just ws }, Cmd.none )
+            ( { model | conn = Just <| Debug.log "in WSOpen OK" ws }, Cmd.none )
 
         WSOpen (Err err) ->
             ( { model
@@ -567,12 +569,7 @@ viewPlaylist model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case ( model.conn, model.mpdOnline ) of
-        ( Just _, True ) ->
-            Time.every Time.second Tick
-
-        _ ->
-            Sub.none
+    Sub.none
 
 
 wsSend : Maybe Explicit.WebSocket -> String -> Cmd Msg
@@ -582,7 +579,7 @@ wsSend mconn o =
             Debug.log "sending without connection" Cmd.none
 
         Just conn ->
-            Explicit.send conn o (\err -> Debug.log ("msg err: " ++ err) Noop)
+            Debug.log "sending something" Cmd.none
 
 
 cmdLoadDir : String -> String -> String

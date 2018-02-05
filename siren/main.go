@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 var (
@@ -43,5 +44,9 @@ func mux(c *MPD, root http.FileSystem) *http.ServeMux {
 	r := http.NewServeMux()
 	r.HandleFunc("/mpd/ws", websocketHandler(c))
 	r.Handle("/", http.FileServer(root))
+	r.HandleFunc("/sleep", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Zzzzz")
+		time.Sleep(9999 * time.Second)
+	})
 	return r
 }
